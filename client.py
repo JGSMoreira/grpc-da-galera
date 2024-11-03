@@ -4,29 +4,30 @@ import chat_pb2_grpc
 import threading
 from collections import deque
 import os
+import sys
 
 msgs = deque()
+username = ''
 
 def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def show_messages():
     clear()
+    show_server_meta()
     for msg in msgs:
-        print(f"[{msg.name}]: {msg.text}")
+        timestamp = msg.timestamp.ToDatetime().strftime('%H:%M:%S')
+        print(f"[{timestamp}] {msg.name}: {msg.text}")
+        
+    print(f"{username}> ", end='', flush=True)
 
-def send_message(stub, username):
+def send_message(stub):
     while True:
-        text = input(f"> ")
+        text = input()
 
-        # Validações
-        if text == '':
-            show_messages()
-            continue
-
-        # Comandos
         if text.lower() == '/sair':
-            break
+            break 
+
         if text == '/limpar':
             msgs.clear()
             clear()
@@ -40,9 +41,17 @@ def receive_messages(stub):
         for chat_message in stub.ChatStream(chat_pb2.Empty()):
             msgs.append(chat_message)
             show_messages()
-        
     except grpc.RpcError as e:
-        print(f"Erro ao receber mensagens: {e}")
+        print(f"\nErro ao receber mensagens: {e}")
+    except Exception as e:
+        print(f"\nErro inesperado: {e}")
+
+def show_server_meta():
+    print("------ Informações do servidor ------")
+    print(f"Servidor: {server_meta.server_name}")
+    print(f"Usuários conectados: {server_meta.user_count}/{server_meta.max_users}")
+    print(f"{server_meta.motd}")
+    print("-------------------------------------")
 
 def main():
     ip = input("Digite o IP do servidor de chat: ")
@@ -51,15 +60,26 @@ def main():
     channel = grpc.insecure_channel(ip)
     stub = chat_pb2_grpc.ChatServiceStub(channel)
 
-    username = input("Digite seu nome de usuário: ")
+    clear()
 
-    receive_thread = threading.Thread(target=receive_messages, args=(stub,))
+    global username
+    username = input("Digite seu nome de usuário: ")
+    print(f"Conectando ao servidor de chat com IP {ip}...")
+
+    try:
+        connect_request = chat_pb2.ConnectRequest(name=username)
+        global server_meta 
+        server_meta = stub.Connect(connect_request)
+        show_server_meta()
+    except grpc.RpcError as e:
+        print(f"\nErro ao conectar ao servidor: {e}")
+        return
+
+    receive_thread = threading.Thread(target=receive_messages, args=(stub,), daemon=True)
     receive_thread.start()
 
-    send_message(stub, username)
+    send_message(stub)
 
-    receive_thread.join()
-    print("Você saiu do chat.")
 
 if __name__ == '__main__':
     main()

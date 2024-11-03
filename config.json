@@ -1,0 +1,6 @@
+{
+    "name": "WhatsApp Azul (ou vermelho, se você preferir)",
+    "motd": "Bem vindo ao servidor!",
+    "max_users": 8,
+    "port": 50051
+}
