@@ -1,28 +1,37 @@
 import grpc
-import server_pb2
-import server_pb2_grpc
+import chat_pb2
+import chat_pb2_grpc
 import threading
+from collections import deque
+import os
 
 def send_message(stub, username):
     while True:
-        text = input(f"{username}: ")
-        if text.lower() == 'exit':
+        text = input(f"> {username}: ")
+        if text.lower() == '/sair':
             break
-        message = server_pb2.ChatMessage(name=username, text=text)
+        message = chat_pb2.ChatMessage(name=username, text=text)
         stub.SendMessage(message)
 
 def receive_messages(stub):
+    msgs = deque()
     try:
-        for chat_message in stub.ChatStream(server_pb2.Empty()):
-            print(f"\n{chat_message.name}: {chat_message.text}")
+        for chat_message in stub.ChatStream(chat_pb2.Empty()):
+            msgs.append(chat_message)
+            os.system('cls' if os.name == 'nt' else 'clear')
+            for msg in msgs:
+                print(f"[{msg.name}]: {msg.text}")
+        
     except grpc.RpcError as e:
-        print(f"Error receiving messages: {e}")
+        print(f"Erro ao receber mensagens: {e}")
 
 def main():
-    channel = grpc.insecure_channel('localhost:50051')
-    stub = server_pb2_grpc.ChatServiceStub(channel)
+    ip = input("Digite o IP do servidor de chat: ")
 
-    username = input("Enter your username: ")
+    channel = grpc.insecure_channel(ip if ip != '' else 'localhost:50051')
+    stub = chat_pb2_grpc.ChatServiceStub(channel)
+
+    username = input("Digite seu nome de usuário: ")
 
     receive_thread = threading.Thread(target=receive_messages, args=(stub,))
     receive_thread.start()
@@ -30,7 +39,7 @@ def main():
     send_message(stub, username)
 
     receive_thread.join()
-    print("You have exited the chat.")
+    print("Você saiu do chat.")
 
 if __name__ == '__main__':
     main()
