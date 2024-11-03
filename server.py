@@ -9,43 +9,70 @@ import sys
 import json
 from datetime import datetime
 from google.protobuf.timestamp_pb2 import Timestamp
-from datetime import datetime
+import comandos_servidor
 
 
 class ChatService(chat_pb2_grpc.ChatServiceServicer):
     def __init__(self):
-        self.users = []
-        self.clients = []
+        self.users = [] 
+        self.clients = {} 
 
     def Connect(self, request, context):
+        if len(self.clients) >= config['max_users']:
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Servidor cheio.")
+        if request.name in self.clients:
+            context.abort(grpc.StatusCode.ALREADY_EXISTS, "Nome de usuário já em uso.")
+
         user = {'name': request.name, 'peer': context.peer()}
         self.users.append(user)
+        self.clients[request.name] = deque() 
 
-        print(f"{request.name} conectou-se ao servidor.")
-        self.notify_clients(f"{request.name} conectou-se ao servidor.")
+        print(f"{request.name} conectou-se ao chat.")
+        self.notify_clients(f"{request.name} conectou-se ao chat.")
 
-        meta = chat_pb2.ServerMeta(server_name=config['name'], motd=config['motd'], max_users=config['max_users'], user_count=(len(self.clients) + 1))
+        meta = chat_pb2.ServerMeta(server_name=config['name'], motd=config['motd'], max_users=config['max_users'], user_count=len(self.clients))
         return meta
 
     def SendMessage(self, request, context):
-        for client in self.clients:
+        for client in self.clients.values():
             timestamp = Timestamp()
             timestamp.FromDatetime(datetime.now())
             request.timestamp.CopyFrom(timestamp)
             client.append(request)
+        
+        # Comandos do servidor
+        if request.text.lower() == '/usuarios':
+            return(comandos_servidor.usuarios(self))
+        elif request.text.lower() == '/motd':
+            return(comandos_servidor.motd(self))
+        elif request.text.lower() == '/ping':
+            return(comandos_servidor.ping(self))
+        elif request.text.startswith('/sussurrar'):
+            return(comandos_servidor.sussurrar(self, request, context))
 
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {request.name}: {request.text}")
-
+        
         return chat_pb2.Empty()
     
     def notify_clients(self, notification_message):
-        notification = chat_pb2.ChatMessage(name="Servidor", text=notification_message)
-        for client in self.clients:
+        timestamp = Timestamp()
+        timestamp.FromDatetime(datetime.now())
+        notification = chat_pb2.ChatMessage(name="Servidor", text=notification_message, timestamp=timestamp)
+        
+        for client in self.clients.values():
             client.append(notification)
 
     def ChatStream(self, request, context):
-        client_messages = deque()
-        self.clients.append(client_messages)
+        user_name = None
+        for user in self.users:
+            if user['peer'] == context.peer():
+                user_name = user['name']
+                break
+
+        if user_name is None:
+            context.abort(grpc.StatusCode.UNAUTHENTICATED, "Usuário não autenticado.")
+
+        client_messages = self.clients[user_name]
 
         try:
             while True:
@@ -55,14 +82,10 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
         except Exception as e:
             print(f"Cliente desconectado: {e}")
         finally:
-            for user in self.users:
-                if user['peer'] == context.peer():
-                    print(f"{user['name']} saiu do chat.")
-                    self.notify_clients(f"{user['name']} saiu do chat.")
-                    self.users.remove(user)
-                    break
-
-            self.clients.remove(client_messages)
+            print(f"{user_name} saiu do chat.")
+            self.notify_clients(f"{user_name} saiu do chat.")
+            self.users = [user for user in self.users if user['name'] != user_name]
+            del self.clients[user_name]
     
     def disconnect_clients(self):
         for client in self.clients:
