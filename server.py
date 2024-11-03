@@ -33,22 +33,24 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
         meta = chat_pb2.ServerMeta(server_name=config['name'], motd=config['motd'], max_users=config['max_users'], user_count=len(self.clients))
         return meta
 
-    def SendMessage(self, request, context):
+    def SendMessage(self, request, context):        
+        # Comandos do servidor
+        if request.text.lower() == '/usuarios':
+            return(comandos_servidor.usuarios(self, request))
+        elif request.text.lower() == '/motd':
+            return(comandos_servidor.motd(self, request))
+        elif request.text.lower() == '/ping':
+            return(comandos_servidor.ping(self, request))
+        elif request.text.lower() == '/ajuda':
+            return(comandos_servidor.ajuda(self, request))
+        elif request.text.startswith('/sussurrar'):
+            return(comandos_servidor.sussurrar(self, request, context))
+        
         for client in self.clients.values():
             timestamp = Timestamp()
             timestamp.FromDatetime(datetime.now())
             request.timestamp.CopyFrom(timestamp)
             client.append(request)
-        
-        # Comandos do servidor
-        if request.text.lower() == '/usuarios':
-            return(comandos_servidor.usuarios(self))
-        elif request.text.lower() == '/motd':
-            return(comandos_servidor.motd(self))
-        elif request.text.lower() == '/ping':
-            return(comandos_servidor.ping(self))
-        elif request.text.startswith('/sussurrar'):
-            return(comandos_servidor.sussurrar(self, request, context))
 
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {request.name}: {request.text}")
         

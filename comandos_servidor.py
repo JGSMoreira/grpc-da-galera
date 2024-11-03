@@ -8,17 +8,17 @@ with open('config.json', 'r') as f:
             global config 
             config = json.load(f)
 
-def usuarios(self):
+def usuarios(self, request):
     users = ', '.join([user['name'] for user in self.users])
-    self.notify_clients(f"Usuários conectados: {users}")
+    mensagem_usuario_especifico(self, request.name, f"Usuários conectados: {users}")
     return chat_pb2.Empty()
 
-def motd(self):
-    self.notify_clients(f"{config['motd']}")
+def motd(self, request):
+    mensagem_usuario_especifico(self, request.name, f"{config['motd']}")
     return chat_pb2.Empty()
 
-def ping(self):
-    self.notify_clients("Pong!")
+def ping(self, request):
+    mensagem_usuario_especifico(self, request.name, "Pong!")
     return chat_pb2.Empty()
     
 def sussurrar(self, request, context):
@@ -32,7 +32,7 @@ def sussurrar(self, request, context):
     if destinatario in self.clients:
         timestamp = Timestamp()
         timestamp.FromDatetime(datetime.now())
-        whisper = chat_pb2.ChatMessage(name="Servidor", text=f"{request.name} sussurrou você: {mensagem}", timestamp=timestamp)
+        whisper = chat_pb2.ChatMessage(name="Servidor", text=f"{request.name} sussurrou '{mensagem}' você.", timestamp=timestamp)
 
         self.clients[destinatario].append(whisper)
         print(f"{request.name} sussurrou para {destinatario}: {mensagem}")
@@ -41,3 +41,15 @@ def sussurrar(self, request, context):
     
     return chat_pb2.Empty()
 
+def ajuda(self, request):
+    mensagem_usuario_especifico(self, request.name, "Comandos disponíveis: /usuarios, /motd, /ping, /sussurrar <usuário> <mensagem>")
+    return chat_pb2.Empty()
+
+def mensagem_usuario_especifico(self, destinatario, mensagem):
+    if destinatario in self.clients:
+        timestamp = Timestamp()
+        timestamp.FromDatetime(datetime.now())
+        print(f"Servidor: {mensagem}")
+        whisper = chat_pb2.ChatMessage(name="Servidor", text=f"{mensagem}", timestamp=timestamp)
+
+        self.clients[destinatario].append(whisper)
