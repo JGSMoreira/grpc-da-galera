@@ -49,4 +49,37 @@ O serviço de chat é definido no arquivo `chat.proto`, que especifica as mensag
 - Após executar os comandos no terminal, crie um nove de usuário;
 - Os usuários podem se conectar ao servidor e enviar mensagens uns aos outros em tempo real;
 - As mensagens enviadas são exibidas no terminal do cliente, e os usuários podem ver o que outros estão enviando.
+
+## Comandos do Cliente
+
+Os usuários podem utilizar os seguintes comandos no cliente:
+
+- `/usuarios`: Lista todos os usuários conectados ao servidor.
+- `/motd`: Exibe a mensagem do dia configurada no servidor.
+- `/ping`: Envia um ping ao servidor e recebe um pong como resposta.
+- `/sussurrar <nome_do_usuario> <mensagem>`: Envia uma mensagem privada para o usuário especificado.
+- `/ajuda`: Exibe a lista de comandos disponíveis.
+
+Exemplo de uso:
+```bash
+/sussurrar Alice Olá, como vai?
+```
   
+## Arquivo de Configuração
+
+O arquivo `config.json` contém as configurações do servidor de chat. Aqui está uma descrição detalhada de cada campo:
+
+- **name**: O nome do servidor de chat.
+- **motd**: A mensagem do dia (Message of the Day) que será exibida aos usuários quando eles se conectarem ao servidor.
+- **max_users**: O número máximo de usuários que podem se conectar ao servidor simultaneamente.
+- **port**: A porta na qual o servidor de chat estará escutando para conexões.
+
+Exemplo do conteúdo do arquivo `config.json`:
+```json
+{
+    "name": "WhatsApp Azul (ou vermelho, se você preferir)",
+    "motd": "Bem vindo ao servidor!",
+    "max_users": 8,
+    "port": 50051
+}
+```
