@@ -10,16 +10,18 @@ import json
 from datetime import datetime
 from google.protobuf.timestamp_pb2 import Timestamp
 import comandos_servidor
+import time
+import os
 
 
-class ChatService(chat_pb2_grpc.ChatServiceServicer):
+class ChatService(chat_pb2_grpc.ChatServiceServicer):   
     def __init__(self):
         self.users = [] 
         self.clients = {} 
 
     def Connect(self, request, context):
         if len(self.clients) >= config['max_users']:
-            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Servidor cheio.")
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, f"Servidor cheio. {len(self.users)}/{config['max_users']} usuários conectados.")
         if request.name in self.clients:
             context.abort(grpc.StatusCode.ALREADY_EXISTS, "Nome de usuário já em uso.")
 
@@ -27,7 +29,7 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
         self.users.append(user)
         self.clients[request.name] = deque() 
 
-        print(f"{request.name} conectou-se ao chat.")
+        log(f"{request.name} conectou-se ao chat.")
         self.notify_clients(f"{request.name} conectou-se ao chat.")
 
         meta = chat_pb2.ServerMeta(server_name=config['name'], motd=config['motd'], max_users=config['max_users'], user_count=len(self.clients))
@@ -52,7 +54,7 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
             request.timestamp.CopyFrom(timestamp)
             client.append(request)
 
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {request.name}: {request.text}")
+        log(f"{request.name}: {request.text}")
         
         return chat_pb2.Empty()
     
@@ -81,45 +83,66 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
                 if client_messages:
                     message = client_messages.popleft()
                     yield message
-        except Exception as e:
-            print(f"Cliente desconectado: {e}")
+                if not context.is_active():
+                     raise grpc.RpcError("Cliente desconectado.")
+        except grpc.RpcError as e:
+            log(f"{e}")
         finally:
-            print(f"{user_name} saiu do chat.")
+            log(f"{user_name} saiu do chat.")
             self.notify_clients(f"{user_name} saiu do chat.")
             self.users = [user for user in self.users if user['name'] != user_name]
             del self.clients[user_name]
-    
-    def disconnect_clients(self):
-        for client in self.clients:
-            client.cancel()
-        self.clients.clear()
+
+def clear():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def log(message):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
 
 def serve():
-    print("Iniciando servidor de chat...")
-    server = grpc.server(ThreadPoolExecutor(max_workers=10))
-    chat_service = ChatService()
-    chat_pb2_grpc.add_ChatServiceServicer_to_server(chat_service, server)
-
-    SERVICE_NAMES = (
-        chat_pb2.DESCRIPTOR.services_by_name['ChatService'].full_name,
-        reflection.SERVICE_NAME,
-    )
-    reflection.enable_server_reflection(SERVICE_NAMES, server)
-
-    server.add_insecure_port(f'[::]:{config["port"]}')
-    server.start()
-
+    clear()
+    
+    print("------ Informações do servidor ------")
     print(f"Nome do servidor: {config['name']}")
     print(f"Máximo de usuários: {config['max_users']}")
     print(f"Mensagem do dia: {config['motd']}")
     print(f"Servidor de chat iniciado na porta {config['port']}.")
-    print("-----------------------------")
+    print("-------------------------------------")
+    
+    log("Iniciando servidor PariChatt...")
+
+    server = None
+    chat_service = None
+    
+    try:
+        server = grpc.server(ThreadPoolExecutor(max_workers=10))
+        chat_service = ChatService()
+        chat_pb2_grpc.add_ChatServiceServicer_to_server(chat_service, server)
+
+        SERVICE_NAMES = (
+            chat_pb2.DESCRIPTOR.services_by_name['ChatService'].full_name,
+            reflection.SERVICE_NAME,
+        )
+        reflection.enable_server_reflection(SERVICE_NAMES, server)
+
+        server.add_insecure_port(f'[::]:{config["port"]}')
+        server.start()
+    except RuntimeError as e:
+        log(f"Falha ao iniciar o servidor: {e}")
+        return
+
+    log("Servidor iniciado com sucesso!")
 
     def signal_handler(sig, frame):
-        print("Servidor encerrando...")
-        stop = server.stop(None)
-        stop.wait(5)
+        log("Notificando clientes sobre o encerramento do servidor...")
+        chat_service.notify_clients("O servidor está sendo desligado. Você será desconectado.")
+        
+        time.sleep(1)
+
+        log("Servidor encerrando...")
+        server.stop(None).wait(5)
         sys.exit(0)
+
 
     signal.signal(signal.SIGINT, signal_handler)
 
