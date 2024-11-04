@@ -7,6 +7,16 @@ from google.protobuf.timestamp_pb2 import Timestamp
 with open('config.json', 'r') as f:
             global config 
             config = json.load(f)
+            
+def mensagem_usuario_especifico(self, destinatario, mensagem):
+    if destinatario in self.clients:
+        timestamp = Timestamp()
+        timestamp.FromDatetime(datetime.now())
+        print(f"Servidor: {mensagem}")
+        whisper = chat_pb2.ChatMessage(name="Servidor", text=f"{mensagem}", timestamp=timestamp)
+
+        self.clients[destinatario].append(whisper)
+        
 
 def usuarios(self, request):
     users = ', '.join([user['name'] for user in self.users])
@@ -45,11 +55,5 @@ def ajuda(self, request):
     mensagem_usuario_especifico(self, request.name, "Comandos disponíveis: /usuarios, /motd, /ping, /sussurrar <usuário> <mensagem>")
     return chat_pb2.Empty()
 
-def mensagem_usuario_especifico(self, destinatario, mensagem):
-    if destinatario in self.clients:
-        timestamp = Timestamp()
-        timestamp.FromDatetime(datetime.now())
-        print(f"Servidor: {mensagem}")
-        whisper = chat_pb2.ChatMessage(name="Servidor", text=f"{mensagem}", timestamp=timestamp)
-
-        self.clients[destinatario].append(whisper)
+# def pessoa_aleatoria(self, request):
+    

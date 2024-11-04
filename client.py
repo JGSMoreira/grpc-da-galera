@@ -78,7 +78,7 @@ def conectar():
     except grpc.RpcError as e:
             print(f"\nErro ao conectar ao servidor: {e.details()}")
             return
-
+    msgs.clear()
     receive_thread = threading.Thread(target=receber_mensagens, args=(stub,), daemon=True)
     receive_thread.start()
 
@@ -92,13 +92,10 @@ def main():
         except grpc.RpcError as e:
             print(f"\nErro ao conectar ao servidor: {e.details()}")
             continue
-        
-        def signal_handler(sig, frame):
+        except KeyboardInterrupt as e:
             print("\nDesconectando do servidor...")
             channel.close()
             sys.exit(0)
-
-        signal.signal(signal.SIGINT, signal_handler)
         
 
 if __name__ == '__main__':

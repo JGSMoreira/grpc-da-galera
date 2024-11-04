@@ -84,7 +84,7 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
                     message = client_messages.popleft()
                     yield message
                 if not context.is_active():
-                     raise grpc.RpcError("Cliente desconectado.")
+                    break
         except grpc.RpcError as e:
             log(f"{e}")
         finally:
