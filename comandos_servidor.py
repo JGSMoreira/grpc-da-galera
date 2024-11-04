@@ -3,6 +3,7 @@ import chat_pb2_grpc
 import json
 from datetime import datetime
 from google.protobuf.timestamp_pb2 import Timestamp
+import requests  # Para fazer a requisição da API
 
 with open('config.json', 'r') as f:
             global config 
@@ -53,6 +54,21 @@ def sussurrar(self, request, context):
 
 def ajuda(self, request):
     mensagem_usuario_especifico(self, request.name, "Comandos disponíveis: /usuarios, /motd, /ping, /sussurrar <usuário> <mensagem>")
+    return chat_pb2.Empty()
+
+def frase_motivacional(self, request):
+    url = "https://zenquotes.io/api/random"
+    response = requests.get(url)
+    data = response.json()
+
+    if data:
+        frase = data[0]['q']
+        autor = data[0]['a']
+        mensagem = f"Frase motivacional: '{frase}' - {autor}"
+    else:
+        mensagem = "Não foi possível obter a frase motivacional."
+
+    mensagem_usuario_especifico(self, request.name, mensagem)
     return chat_pb2.Empty()
 
 # def pessoa_aleatoria(self, request):

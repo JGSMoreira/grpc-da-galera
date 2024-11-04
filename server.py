@@ -12,6 +12,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 import comandos_servidor
 import time
 import os
+import requests  # Biblioteca para fazer requisições HTTP
 
 
 class ChatService(chat_pb2_grpc.ChatServiceServicer):   
@@ -47,7 +48,9 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
             return(comandos_servidor.ajuda(self, request))
         elif request.text.startswith('/sussurrar'):
             return(comandos_servidor.sussurrar(self, request, context))
-        
+        elif request.text.lower() == '/fm':  # Novo comando para frases motivacionais
+            return(comandos_servidor.frase_motivacional(self, request))
+
         for client in self.clients.values():
             timestamp = Timestamp()
             timestamp.FromDatetime(datetime.now())
