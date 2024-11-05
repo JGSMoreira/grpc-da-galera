@@ -2,5 +2,20 @@
     "name": "WhatsApp Azul (ou vermelho, se você preferir)",
     "motd": "Bem vindo ao servidor!",
     "max_users": 8,
-    "port": 50051
+    "port": 50051,
+    "enable_white_list": false,
+    "enable_black_list": false,
+    "admins": [
+        "joao",
+        "parizotto"
+    ],
+    "white_list": [
+        "joao",
+        "parizotto",
+        "alice",
+        "freitas"
+    ],
+    "black_list": [
+
+    ]
 }

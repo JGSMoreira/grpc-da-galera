@@ -12,44 +12,64 @@ from google.protobuf.timestamp_pb2 import Timestamp
 import comandos_servidor
 import time
 import os
-import requests  # Biblioteca para fazer requisições HTTP
 
 
 class ChatService(chat_pb2_grpc.ChatServiceServicer):   
     def __init__(self):
+        self.pool_remocao = []
+        self.banido_instancia = []
         self.users = [] 
-        self.clients = {} 
+        self.clients = {}
 
     def Connect(self, request, context):
         if len(self.clients) >= config['max_users']:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, f"Servidor cheio. {len(self.users)}/{config['max_users']} usuários conectados.")
         if request.name in self.clients:
             context.abort(grpc.StatusCode.ALREADY_EXISTS, "Nome de usuário já em uso.")
+        if request.name == "Servidor":
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Nome de usuário inválido")
+        if config['enable_black_list'] == True and (request.name in config['black_list'] or request.name in self.banido_instancia):
+            context.abort(grpc.StatusCode.PERMISSION_DENIED, "Você foi banido do servidor.")
+        if config['enable_white_list'] == True and request.name not in config['white_list']:
+            context.abort(grpc.StatusCode.PERMISSION_DENIED, "Você não tem permissão para acessar o servidor.")
 
-        user = {'name': request.name, 'peer': context.peer()}
+        user = {'name': request.name, 'peer': context.peer(), 'context': context}
         self.users.append(user)
         self.clients[request.name] = deque() 
 
-        log(f"{request.name} conectou-se ao chat.")
-        self.notify_clients(f"{request.name} conectou-se ao chat.")
+        log(f"{request.name} entrou no chat.")
+        self.notify_clients(f"{request.name} entrou no chat ({len(self.users)}/{config['max_users']}).")
 
         meta = chat_pb2.ServerMeta(server_name=config['name'], motd=config['motd'], max_users=config['max_users'], user_count=len(self.clients))
         return meta
 
-    def SendMessage(self, request, context):        
+    def SendMessage(self, request, context):
+        if request.name not in self.clients:
+            context.abort(grpc.StatusCode.UNAUTHENTICATED, "Usuário não autenticado.")
+                
         # Comandos do servidor
-        if request.text.lower() == '/usuarios':
-            return(comandos_servidor.usuarios(self, request))
-        elif request.text.lower() == '/motd':
-            return(comandos_servidor.motd(self, request))
-        elif request.text.lower() == '/ping':
-            return(comandos_servidor.ping(self, request))
-        elif request.text.lower() == '/ajuda':
-            return(comandos_servidor.ajuda(self, request))
-        elif request.text.startswith('/sussurrar'):
-            return(comandos_servidor.sussurrar(self, request, context))
-        elif request.text.lower() == '/fm':  # Novo comando para frases motivacionais
-            return(comandos_servidor.frase_motivacional(self, request))
+        try:
+            if request.text.lower() == '/usuarios':
+                return(comandos_servidor.usuarios(self, request))
+            elif request.text.lower() == '/motd':
+                return(comandos_servidor.motd(self, request))
+            elif request.text.lower() == '/ping':
+                return(comandos_servidor.ping(self, request))
+            elif request.text.lower() == '/ajuda':
+                return(comandos_servidor.ajuda(self, request))
+            elif request.text.startswith('/sussurrar'):
+                return(comandos_servidor.sussurrar(self, request))
+            elif request.text.lower() == '/fm':
+                return(comandos_servidor.frase_motivacional(self, request))
+            
+            elif request.text.startswith('/expulsar'):
+                return(comandos_servidor.expulsar(self, request))
+            elif request.text.startswith('/banir'):
+                return(comandos_servidor.banir(self, request))
+        except Exception as e:
+            log(f"Erro ao executar comando: {e}")
+            comandos_servidor.mensagem_usuario_especifico(self, request.name, "Erro ao executar comando.")
+            return chat_pb2.Empty()
 
         for client in self.clients.values():
             timestamp = Timestamp()
@@ -88,11 +108,21 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
                     yield message
                 if not context.is_active():
                     break
+                if self.pool_remocao:
+                    for user in self.pool_remocao:
+                        if user == user_name:
+                            self.pool_remocao.remove(user)
+                            for user in self.users:
+                                if user['name'] == user_name:
+                                    del self.clients[user_name]
+                                    break
+                            context.abort(grpc.StatusCode.UNAUTHENTICATED, "Você foi expulso da sala.")
+                            break
         except grpc.RpcError as e:
             log(f"{e}")
         finally:
             log(f"{user_name} saiu do chat.")
-            self.notify_clients(f"{user_name} saiu do chat.")
+            self.notify_clients(f"{user_name} saiu do chat ({len(self.users) - 1}/{config['max_users']}).")
             self.users = [user for user in self.users if user['name'] != user_name]
             del self.clients[user_name]
 

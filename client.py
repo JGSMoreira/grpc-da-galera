@@ -39,6 +39,7 @@ def enviar_mensagem(stub):
         message = chat_pb2.ChatMessage(name=username, text=text)
         stub.SendMessage(message)
 
+
 def receber_mensagens(stub):
     try:
         for chat_message in stub.ChatStream(chat_pb2.Empty()):
@@ -47,8 +48,12 @@ def receber_mensagens(stub):
     except grpc.RpcError as e:
         if e.code() != grpc.StatusCode.CANCELLED:
             print(f"\nErro ao receber mensagens: {e.details()}")
+        channel.close()
+        os._exit(1) 
     except Exception as e:
         print(f"\nErro inesperado: {e}")
+        channel.close()
+        os._exit(1)
 
 def mostrar_metadados_servidor():
     print("------ Informações do servidor ------")
